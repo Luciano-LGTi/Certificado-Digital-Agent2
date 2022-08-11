@@ -1,0 +1,166 @@
+zabbix_export:
+  version: '5.4'
+  date: '2022-06-07T14:29:49Z'
+  groups:
+    -
+      uuid: 548049af8afd476e8484e5195778613f
+      name: Template/Customizado
+  templates:
+    -
+      uuid: c4590ec594184cf89715c54c9982e6f2
+      template: 'Template Website certificate by Zabbix agent 2'
+      name: 'Template Website certificate by Zabbix agent 2'
+      groups:
+        -
+          name: Template/Customizado
+      items:
+        -
+          uuid: 695c0ab303a84a1f83872a7bd8d323a1
+          name: 'Cert: Expires on'
+          type: DEPENDENT
+          key: cert.not_after
+          delay: '0'
+          units: '!Days'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var result = JSON.parse(value);
+                  
+                  var dateEnd = result.x509.not_after.timestamp; // receiver timestamp in 10 digit format from date end certificate expire
+                  
+                  var dateNow = parseInt(Date.now() / 1000, 10); // generate timestamp from now in 13 digit format, and convert to 10 digit format using radix 10
+                  
+                  var dateEndInDays = dateEnd / 86400; // convert date end timestamp to days
+                  
+                  var dateNowInDays = dateNow / 86400; // convert date now timestamp to days
+                  
+                  var dateDiff = dateEndInDays - dateNowInDays; // generate diff between date end and date now
+                  
+                  return parseInt(dateDiff, 10); // return round value on integer days format
+          master_item:
+            key: 'web.certificate.get[{$CERT.WEBSITE.HOSTNAME}]'
+          tags:
+            -
+              tag: Application
+              value: Certificate
+          triggers:
+            -
+              uuid: 9d715058987c4052810807628af91834
+              expression: 'last(/Template Website certificate by Zabbix agent 2/cert.not_after)<{$CERT.EXPIRY.DISASTER}'
+              name: 'Certificado irá Expirar em {$CERT.EXPIRY.DISASTER} dias.'
+              opdata: 'Valor atual: {ITEM.LASTVALUE}'
+              priority: DISASTER
+              manual_close: 'YES'
+            -
+              uuid: dcd3fdc23d474c19b60783b84db80222
+              expression: 'last(/Template Website certificate by Zabbix agent 2/cert.not_after)<{$CERT.EXPIRY.HIGH}'
+              name: 'Certificado irá Expirar em {$CERT.EXPIRY.HIGH} dias.'
+              opdata: 'Valor atual: {ITEM.LASTVALUE}'
+              priority: HIGH
+              manual_close: 'YES'
+              dependencies:
+                -
+                  name: 'Certificado irá Expirar em {$CERT.EXPIRY.DISASTER} dias.'
+                  expression: 'last(/Template Website certificate by Zabbix agent 2/cert.not_after)<{$CERT.EXPIRY.DISASTER}'
+            -
+              uuid: 32dcfc5a44354bce962189ab20be2444
+              expression: 'last(/Template Website certificate by Zabbix agent 2/cert.not_after)<{$CERT.EXPIRY.WARN}'
+              name: 'Certificado irá Expirar em {$CERT.EXPIRY.WARN} dias.'
+              opdata: 'Valor atual: {ITEM.LASTVALUE}'
+              priority: AVERAGE
+              manual_close: 'YES'
+              dependencies:
+                -
+                  name: 'Certificado irá Expirar em {$CERT.EXPIRY.DISASTER} dias.'
+                  expression: 'last(/Template Website certificate by Zabbix agent 2/cert.not_after)<{$CERT.EXPIRY.DISASTER}'
+                -
+                  name: 'Certificado irá Expirar em {$CERT.EXPIRY.HIGH} dias.'
+                  expression: 'last(/Template Website certificate by Zabbix agent 2/cert.not_after)<{$CERT.EXPIRY.HIGH}'
+        -
+          uuid: b9027e9b6a484c71b8a3b43bbc8f9797
+          name: 'Cert: Validation result'
+          type: DEPENDENT
+          key: cert.validation
+          delay: '0'
+          status: DISABLED
+          valuemap:
+            name: 'Cert: Validation result'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.result.value
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var stats = 0;
+                  
+                  if(value.includes('valid')){
+                    stats = 1;
+                  }
+                  
+                  return stats;
+          master_item:
+            key: 'web.certificate.get[{$CERT.WEBSITE.HOSTNAME}]'
+          tags:
+            -
+              tag: Application
+              value: Certificate
+          triggers:
+            -
+              uuid: 4058792c1b40412b8e26fd686b2ad9e6
+              expression: 'last(/Template Website certificate by Zabbix agent 2/cert.validation)<>1'
+              name: 'Certificado não é valido'
+              priority: HIGH
+              manual_close: 'YES'
+        -
+          uuid: 8d7c2b928534495598651c6e25476a2a
+          name: 'Cert: Get'
+          key: 'web.certificate.get[{$CERT.WEBSITE.HOSTNAME}]'
+          delay: 1d
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          tags:
+            -
+              tag: Application
+              value: 'Raw Data'
+      macros:
+        -
+          macro: '{$CERT.EXPIRY.DISASTER}'
+          value: '5'
+          description: 'Number of days until the certificate expires.'
+        -
+          macro: '{$CERT.EXPIRY.HIGH}'
+          value: '15'
+          description: 'Number of days until the certificate expires.'
+        -
+          macro: '{$CERT.EXPIRY.WARN}'
+          value: '30'
+          description: 'Number of days until the certificate expires.'
+        -
+          macro: '{$CERT.WEBSITE.HOSTNAME}'
+          value: URL
+          description: 'The website DNS name for the connection.'
+        -
+          macro: '{$CERT.WEBSITE.IP}'
+          value: '``'
+          description: 'The website IP address for the connection.'
+        -
+          macro: '{$CERT.WEBSITE.PORT}'
+          value: '443'
+          description: 'The TLS/SSL port number of the website.'
+      valuemaps:
+        -
+          uuid: 11b0b67ca7ef42a2b5adabbbe1adb090
+          name: 'Cert: Validation result'
+          mappings:
+            -
+              value: '1'
+              newvalue: Valid
+            -
+              value: '0'
+              newvalue: Problem
